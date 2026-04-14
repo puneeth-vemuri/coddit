@@ -13,8 +13,8 @@ Coddit is a developer-first social problem-solving platform for Android.
 Think Reddit + Stack Overflow + LinkedIn, but cleaner and built for builders.
 
 Core loop:
-1. A user posts a technical problem (title + body + optional code snippet + tags)
-2. Other users reply with solutions (text + safe links + code)
+1. A user posts a technical problem (title + body + optional image + tags)
+2. Other users reply with solutions (text + safe links + image)
 3. The post author marks the best reply as accepted
 4. "Bytes" (reputation points) are awarded automatically
 
@@ -23,6 +23,100 @@ Key differentiators:
 - Links in replies are safety-verified before previews are shown
 - "Bytes" replace karma — non-transferable reputation score
 - Feed is tag-personalised based on linked account languages/skills
+
+---
+
+## 0.5 Current Implementation Status
+
+**Last Updated:** April 14, 2026
+**Version:** v1
+**GitHub Repository:** https://github.com/puneeth-vemuri/coddit
+
+### ✅ Completed Features & Fixes
+
+The following issues have been resolved in the current implementation:
+
+1. **Profile photos now update in existing posts**
+   - Added `updateAuthorAvatar` method to `PostRemoteSource.kt`
+   - When a user changes their avatar, all their existing posts are updated with the new avatar URL
+   - Implemented in `UserRepositoryImpl.kt` with proper error handling
+
+2. **Bytes system fully functional**
+   - Bytes now properly update in user profiles using `FieldValue.increment()`
+   - Added `updateBytes` method to `UserRemoteSource.kt` and `UserRepository`
+   - Bytes are awarded for: POST_UPVOTED, REPLY_ACCEPTED, REPLY_UPVOTED, POST_SOLVED
+
+3. **Byte voting system implemented**
+   - One vote per user per post/reply (like Instagram/Facebook/Reddit)
+   - Vote tracking prevents multiple votes from the same user
+   - UI reflects vote status with proper visual feedback
+
+4. **Clickable avatar and username navigation**
+   - Post owner avatar and name are now clickable in `PostCard.kt`
+   - Added `onAuthorClick` parameter to navigate to user profile
+   - Updated `SharedComponents.kt` with clickable `UserAvatar` component
+
+5. **Replies now properly show in posts**
+   - Fixed broken `acceptReply` functionality in `ReplyRemoteSource.kt`
+   - Added missing DAO methods: `updateReplyAccepted` and `updatePostSolved`
+   - Replies display correctly with accepted status indicators
+
+6. **Follow functionality added**
+   - Added follow/unfollow methods to `UserRemoteSource.kt`
+   - Implemented `followUser`, `unfollowUser`, and `isFollowing` methods
+   - Added corresponding use cases in `UserUseCases.kt`
+   - Follow button appears on other users' profiles (not on own profile)
+
+7. **Followers list view implemented**
+   - Basic follower count display in profile screen
+   - Follow/unfollow status tracked in real-time
+   - Firebase subcollections used for follower/following relationships
+
+8. **Duplicate UI elements removed**
+   - Consolidated duplicate "add account" section in `ProfileScreen.kt`
+   - Removed duplicate notification icon from top bar in `FeedScreen.kt`
+   - Removed duplicate "+" post button above navigation bar
+
+9. **GitHub repository secured**
+   - Updated `.gitignore` to exclude sensitive files:
+     - `**/google-services.json`
+     - `**/GoogleService-Info.plist`
+     - `**/cloudinary-config.properties`
+   - All changes pushed to new repository with proper security
+
+10. **Compilation errors fixed**
+    - Fixed `Argument type mismatch` in `ReplyRemoteSource.kt`
+    - Fixed `Unresolved reference` errors for missing imports and DAO methods
+    - Added missing `clickable` import to `SharedComponents.kt`
+
+### 🔧 Technical Implementation Details
+
+- **Repository Pattern**: All data access follows clean architecture with proper separation
+- **Firestore Integration**: Real-time updates using Firestore listeners
+- **Room Database**: Offline-first caching with proper entity mappings
+- **ViewModel Pattern**: State management using `UiState` sealed classes
+- **Navigation**: Type-safe routes with Compose Navigation
+- **Dependency Injection**: Hilt for clean dependency management
+
+### 📱 Current App State
+
+The app is fully functional with:
+- User authentication (Google + GitHub OAuth)
+- Post creation with images and tags
+- Reply system with voting and acceptance
+- Profile management with avatar and skills
+- Follow system for user connections
+- Byte-based reputation system
+- Offline support with local caching
+
+### 🚀 Next Steps (Optional)
+
+Potential enhancements for future versions:
+1. Implement Algolia search integration
+2. Add push notifications for replies and follows
+3. Enhance link safety system with more domains
+4. Add post editing with version history
+5. Implement advanced filtering and sorting
 
 ---
 
@@ -41,7 +135,7 @@ Key differentiators:
 | Remote DB            | Firebase Firestore                  | Primary cloud database         |
 | Auth                 | Firebase Auth                       | Google + GitHub OAuth          |
 | Push notifications   | Firebase Cloud Messaging (FCM)      |                                |
-| File storage         | Firebase Storage                    | Avatars, post images           |
+| File storage         | Cloudinary                          | Avatars, post images (via Cloudinary API) |
 | Crash monitoring     | Firebase Crashlytics                |                                |
 | Analytics            | Firebase Analytics                  |                                |
 | Search               | Algolia (free tier)                 | Full-text post/tag search      |
@@ -190,15 +284,17 @@ Define these as pure Kotlin data classes in `domain/model/`. No Android imports.
 
 ```kotlin
 // Post.kt
+@Serializable
 data class Post(
     val postId: String,
     val authorUid: String,
     val authorUsername: String,
     val authorAvatarUrl: String?,
-    val authorLinkedAccounts: List<LinkedAccount>,
+    val authorLinkedAccounts: List<LinkedAccount> = emptyList(),
     val title: String,
     val body: String,
     val codeSnippet: String?,
+    val imageUrls: List<String> = emptyList(),
     val tags: List<String>,
     val upvotes: Int,
     val viewCount: Int,
@@ -209,14 +305,16 @@ data class Post(
 )
 
 // Reply.kt
+@Serializable
 data class Reply(
     val replyId: String,
     val postId: String,
     val authorUid: String,
     val authorUsername: String,
     val authorAvatarUrl: String?,
-    val authorLinkedAccounts: List<LinkedAccount>,
+    val authorLinkedAccounts: List<LinkedAccount> = emptyList(),
     val body: String,
+    val imageUrls: List<String> = emptyList(),
     val links: List<SafeLink>,
     val accepted: Boolean,
     val upvotes: Int,
@@ -224,6 +322,7 @@ data class Reply(
 )
 
 // User.kt
+@Serializable
 data class User(
     val uid: String,
     val username: String,
@@ -234,15 +333,17 @@ data class User(
     val solvedCount: Int,
     val followerCount: Int,
     val linkedAccounts: List<LinkedAccount>,
+    val skills: List<String> = emptyList(),
     val createdAt: Long
 )
 
 // LinkedAccount.kt
+@Serializable
 data class LinkedAccount(
     val provider: LinkedAccountProvider,
     val handle: String,
     val profileUrl: String,
-    val displayData: String,   // e.g. "312 repos · 890 stars" or "Senior Dev · 5 yrs"
+    val displayData: String,
     val verified: Boolean
 )
 
@@ -251,16 +352,18 @@ enum class LinkedAccountProvider {
 }
 
 // SafeLink.kt
+@Serializable
 data class SafeLink(
     val url: String,
-    val displayUrl: String,        // shortened for display
-    val title: String?,            // fetched from og:title
-    val isVerified: Boolean,       // true = on allowlist OR passed Safe Browsing
-    val isMalicious: Boolean,      // true = blocked
+    val displayUrl: String,
+    val title: String?,
+    val isVerified: Boolean,
+    val isMalicious: Boolean,
     val isOnAllowlist: Boolean
 )
 
 // BytesEvent.kt
+@Serializable
 data class BytesEvent(
     val eventId: String,
     val uid: String,
@@ -271,11 +374,11 @@ data class BytesEvent(
 )
 
 enum class BytesAction {
-    POST_UPVOTED,           // +2
-    REPLY_ACCEPTED,         // +10
-    REPLY_UPVOTED,          // +1
-    POST_100_VIEWS,         // +5
-    LINK_VERIFIED           // +3
+    POST_UPVOTED,
+    REPLY_ACCEPTED,
+    REPLY_UPVOTED,
+    POST_SOLVED,
+    LINK_VERIFIED
 }
 ```
 
@@ -295,7 +398,7 @@ Collections and document shapes. Use these exact field names.
   postCount: Int (default 0)
   solvedCount: Int (default 0)
   followerCount: Int (default 0)
-  tags: List<String>           // user's interest tags
+  skills: List<String>         // user's technical skills
   createdAt: Timestamp
 
 /users/{uid}/linked_accounts/{provider}
@@ -306,12 +409,25 @@ Collections and document shapes. Use these exact field names.
   verified: Boolean
   linkedAt: Timestamp
 
+/users/{uid}/followers/{followerUid}   // For follow system
+  followerUid: String
+  followedUid: String
+  createdAt: Timestamp
+
+/users/{uid}/following/{followedUid}   // For follow system
+  followerUid: String
+  followedUid: String
+  createdAt: Timestamp
+
 /posts/{postId}
   postId: String
   authorUid: String
+  authorUsername: String
+  authorAvatarUrl: String?
   title: String
   body: String
   codeSnippet: String?
+  imageUrls: List<String>      // Cloudinary image URLs
   tags: List<String>
   upvotes: Int (default 0)
   viewCount: Int (default 0)
@@ -325,7 +441,10 @@ Collections and document shapes. Use these exact field names.
   replyId: String
   postId: String
   authorUid: String
+  authorUsername: String
+  authorAvatarUrl: String?
   body: String
+  imageUrls: List<String>      // Cloudinary image URLs
   links: List<Map>             // serialised SafeLink objects
   accepted: Boolean (default false)
   upvotes: Int (default 0)
@@ -852,13 +971,14 @@ Build every screen below. Each must handle Loading, Success, Error, Empty states
 - Offline banner when no connection
 
 ### 14.5 PostCard (component)
-- Author avatar + username + linked account badges (GitHub, LinkedIn pills)
+- Author avatar + username (both clickable to navigate to user profile) + linked account badges (GitHub, LinkedIn pills)
 - Time ago + view count
 - Post title (max 2 lines)
 - Post body preview (max 3 lines, truncated)
 - Code snippet preview if present (syntax-highlighted, scrollable horizontally)
+- Image previews if post has imageUrls (Cloudinary URLs)
 - Tag chips
-- Upvote button + count, Reply count, Share button
+- Upvote button + count (one vote per user), Reply count, Share button
 - Bytes pill (+N bytes) shown when user earns bytes from this post
 - "Solved" green badge if post.solved == true
 
@@ -873,8 +993,9 @@ Build every screen below. Each must handle Loading, Success, Error, Empty states
 ### 14.7 ReplyCard (component)
 - Author avatar + username + badges
 - Reply body
+- Image previews if reply has imageUrls (Cloudinary URLs)
 - SafeLinkPreview for each link (show domain, verified badge, title if fetched)
-- Upvote button
+- Upvote button (one vote per user)
 - "Accept" button (only visible to post author, only if post not yet solved)
 - Code block if reply contains code
 
@@ -883,17 +1004,18 @@ Build every screen below. Each must handle Loading, Success, Error, Empty states
 - Body field (required, markdown-lite, min 20 chars)
 - Code snippet field (optional, monospace font, language selector dropdown)
 - Tag picker (select 1–5 tags)
-- Attach image button (Firebase Storage upload, show preview)
+- Attach image button (Cloudinary upload, show preview)
 - Paste link button (triggers SafeLink check immediately)
 - Post button (disabled until title + body filled)
 
 ### 14.9 ProfileScreen
 - Avatar (tappable to change)
-- Username, display name, location
+- Username, display name, skills list
 - Bytes count (large, purple)
 - Stats row: Posts | Solved | Followers
+- Follow button (only visible when viewing another user's profile)
 - Linked accounts section (expandable cards per provider)
-- "Add account" button → LinkAccountScreen
+- "Add account" button → LinkAccountScreen (only on own profile)
 - Tab row: Posts | Replies | Saved
 
 ### 14.10 LinkAccountScreen
