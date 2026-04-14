@@ -30,6 +30,8 @@ local.properties
 # Build outputs
 **/build/
 **/out/
+# Documentation (build specification)
+GEMINI.md
 # Android Studio
 .idea/
 # Gradle
