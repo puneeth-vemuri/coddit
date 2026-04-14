@@ -85,7 +85,6 @@ object Mappers {
         avatarUrl = avatarUrl,
         bytes = bytes,
         postCount = postCount,
-        solvedCount = solvedCount,
         followerCount = followerCount,
         linkedAccounts = try { json.decodeFromString(linkedAccountsJson) } catch (e: Exception) { emptyList() },
         skills = try { json.decodeFromString(skillsJson) } catch (e: Exception) { emptyList() },
@@ -99,7 +98,6 @@ object Mappers {
         avatarUrl = avatarUrl,
         bytes = bytes,
         postCount = postCount,
-        solvedCount = solvedCount,
         followerCount = followerCount,
         linkedAccountsJson = json.encodeToString(linkedAccounts),
         skillsJson = json.encodeToString(skills)

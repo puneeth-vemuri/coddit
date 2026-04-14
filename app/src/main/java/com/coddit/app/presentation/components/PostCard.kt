@@ -33,7 +33,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.coddit.app.domain.model.Post
 import com.coddit.app.presentation.theme.CodditTeal
-import com.coddit.app.presentation.theme.SolvedGreen
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -84,21 +83,6 @@ fun PostCard(
                     )
                 }
 
-                if (post.solved) {
-                    Surface(
-                        color = SolvedGreen.copy(alpha = 0.15f),
-                        shape = RoundedCornerShape(4.dp),
-                        border = BorderStroke(1.dp, SolvedGreen.copy(alpha = 0.3f))
-                    ) {
-                        Text(
-                            text = "Solved",
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                            color = SolvedGreen
-                        )
-                    }
-                }
             }
 
             Spacer(modifier = Modifier.height(14.dp))

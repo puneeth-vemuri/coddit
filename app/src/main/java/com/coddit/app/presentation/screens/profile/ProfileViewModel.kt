@@ -2,10 +2,12 @@ package com.coddit.app.presentation.screens.profile
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.coddit.app.domain.model.LinkedAccount
 import com.coddit.app.domain.model.LinkedAccountProvider
 import com.coddit.app.domain.model.Post
 import com.coddit.app.domain.model.User
 import com.coddit.app.domain.repository.UserRepository
+import com.coddit.app.domain.usecase.user.GetFollowersUseCase
 import com.coddit.app.domain.usecase.feed.GetPostsByAuthorUseCase
 import com.coddit.app.domain.usecase.user.FollowUserUseCase
 import com.coddit.app.domain.usecase.user.GetUserProfileUseCase
@@ -21,6 +23,7 @@ import javax.inject.Inject
 @HiltViewModel
 class ProfileViewModel @Inject constructor(
     private val getUserProfileUseCase: GetUserProfileUseCase,
+    private val getFollowersUseCase: GetFollowersUseCase,
     private val getPostsByAuthorUseCase: GetPostsByAuthorUseCase,
     private val userRepository: UserRepository,
     private val followUserUseCase: FollowUserUseCase,
@@ -37,17 +40,28 @@ class ProfileViewModel @Inject constructor(
     private val _postsState = MutableStateFlow<UiState<List<Post>>>(UiState.Loading)
     val postsState: StateFlow<UiState<List<Post>>> = _postsState.asStateFlow()
 
+    private val _followersState = MutableStateFlow<UiState<List<User>>>(UiState.Empty)
+    val followersState: StateFlow<UiState<List<User>>> = _followersState.asStateFlow()
+
     private val _isFollowingState = MutableStateFlow<Boolean?>(null)
     val isFollowingState: StateFlow<Boolean?> = _isFollowingState.asStateFlow()
 
     fun loadProfile(uid: String) {
         currentUid = uid
+        val currentUserUid = auth.currentUser?.uid
         viewModelScope.launch {
             _uiState.value = UiState.Loading
             getUserProfileUseCase(uid)
                 .catch { e -> _uiState.value = UiState.Error(e.message ?: "Failed to load profile") }
                 .collect { user ->
-                    _uiState.value = if (user == null) UiState.Error("User not found") else UiState.Success(user)
+                    if (user == null) {
+                        _uiState.value = UiState.Error("User not found")
+                    } else {
+                        _uiState.value = UiState.Success(user)
+                        if (uid == currentUserUid && user.linkedAccounts.isEmpty()) {
+                            backfillLinkedAccountsFromAuth(uid)
+                        }
+                    }
                 }
         }
 
@@ -61,7 +75,6 @@ class ProfileViewModel @Inject constructor(
         }
 
         // Check follow status if viewing another user's profile
-        val currentUserUid = auth.currentUser?.uid
         if (currentUserUid != null && currentUserUid != uid) {
             viewModelScope.launch {
                 checkFollowingStatus(currentUserUid, uid)
@@ -125,6 +138,44 @@ class ProfileViewModel @Inject constructor(
         val uid = currentUid ?: return
         viewModelScope.launch {
             userRepository.updateProfile(uid = uid, skills = skills)
+        }
+    }
+
+    fun loadFollowers(uid: String) {
+        viewModelScope.launch {
+            _followersState.value = UiState.Loading
+            val result = getFollowersUseCase(uid)
+            _followersState.value = result.fold(
+                onSuccess = { followers -> if (followers.isEmpty()) UiState.Empty else UiState.Success(followers) },
+                onFailure = { UiState.Error(it.message ?: "Failed to load followers") }
+            )
+        }
+    }
+
+    private suspend fun backfillLinkedAccountsFromAuth(uid: String) {
+        val firebaseUser = auth.currentUser ?: return
+        val accounts = firebaseUser.providerData.mapNotNull { providerInfo ->
+            when (providerInfo.providerId) {
+                "google.com" -> LinkedAccount(
+                    provider = LinkedAccountProvider.GOOGLE,
+                    handle = providerInfo.email ?: firebaseUser.email ?: firebaseUser.uid.take(8),
+                    profileUrl = "",
+                    displayData = providerInfo.email ?: firebaseUser.email ?: "Google account linked",
+                    verified = true
+                )
+                "github.com" -> LinkedAccount(
+                    provider = LinkedAccountProvider.GITHUB,
+                    handle = providerInfo.displayName ?: firebaseUser.displayName ?: firebaseUser.uid.take(8),
+                    profileUrl = "",
+                    displayData = "Connected via GitHub OAuth",
+                    verified = true
+                )
+                else -> null
+            }
+        }
+
+        accounts.forEach { account ->
+            userRepository.linkAccount(uid, account)
         }
     }
 }

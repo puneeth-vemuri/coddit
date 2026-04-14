@@ -2,6 +2,7 @@ package com.coddit.app.presentation.components
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -23,7 +24,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -43,12 +43,11 @@ import com.coddit.app.presentation.theme.SolvedGreen
 fun ReplyCard(
     reply: Reply,
     onUpvote: () -> Unit,
-    onAccept: () -> Unit,
-    canAccept: Boolean = false,
     canEdit: Boolean = false,
     canDelete: Boolean = false,
     onEdit: () -> Unit = {},
-    onDelete: () -> Unit = {}
+    onDelete: () -> Unit = {},
+    onAuthorClick: () -> Unit = {}
 ) {
     val isAccepted = reply.accepted
     var menuExpanded by remember { mutableStateOf(false) }
@@ -90,13 +89,14 @@ fun ReplyCard(
             }
 
             Row(verticalAlignment = Alignment.CenterVertically) {
-                UserAvatar(url = reply.authorAvatarUrl, size = 32)
+                UserAvatar(url = reply.authorAvatarUrl, size = 32, onClick = onAuthorClick)
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     text = reply.authorUsername,
                     fontWeight = FontWeight.Bold,
                     fontSize = 14.sp,
-                    color = Color.White
+                    color = Color.White,
+                    modifier = Modifier.clickable(onClick = onAuthorClick)
                 )
                 Spacer(modifier = Modifier.width(6.dp))
                 reply.authorLinkedAccounts.forEach { account ->
@@ -220,12 +220,6 @@ fun ReplyCard(
                         )
                     }
                     Text(text = "${reply.upvotes}", fontSize = 13.sp, color = Color.White.copy(alpha = 0.8f))
-                }
-
-                if (canAccept && !isAccepted) {
-                    TextButton(onClick = onAccept) {
-                        Text("Accept Solution", color = SolvedGreen, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                    }
                 }
             }
         }

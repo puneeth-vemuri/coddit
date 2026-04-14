@@ -2,6 +2,7 @@ package com.coddit.app.data.repository
 
 import com.coddit.app.data.local.db.dao.PostDao
 import com.coddit.app.data.local.db.dao.UserDao
+import com.coddit.app.data.local.db.entity.DeletedPostEntity
 import com.coddit.app.data.remote.firestore.PostRemoteSource
 import com.coddit.app.data.remote.storage.ImageStorageSource
 import com.coddit.app.data.repository.Mappers.toDomain
@@ -38,6 +39,11 @@ class PostRepositoryImpl @Inject constructor(
                     try {
                         val remote = postRemoteSource.getFeed(tags)
                         postDao.insertPosts(remote.map { it.toEntity() })
+                        if (tags.isEmpty() && remote.isNotEmpty()) {
+                            val remoteIds = remote.map { it.postId }
+                            val oldestIncluded = remote.minOf { it.createdAt }
+                            postDao.deleteRecentPostsNotIn(remoteIds, oldestIncluded)
+                        }
                         // Optional: evict old posts
                         postDao.evictOldPosts(System.currentTimeMillis() - (24 * 60 * 60 * 1000L))
                     } catch (e: Exception) {
@@ -55,6 +61,11 @@ class PostRepositoryImpl @Inject constructor(
                     try {
                         val remote = postRemoteSource.getPostsByAuthor(authorUid)
                         postDao.insertPosts(remote.map { it.toEntity() })
+                        if (remote.isEmpty()) {
+                            postDao.deletePostsByAuthor(authorUid)
+                        } else {
+                            postDao.deletePostsByAuthorNotIn(authorUid, remote.map { it.postId })
+                        }
                     } catch (e: Exception) {
                         FirebaseCrashlytics.getInstance().recordException(e)
                     }
@@ -87,7 +98,14 @@ class PostRepositoryImpl @Inject constructor(
 
     override suspend fun votePost(postId: String, voterUid: String): Result<Unit> {
         return try {
-            postRemoteSource.votePost(postId, 1) // Increment by 1
+            val applied = postRemoteSource.votePost(postId, voterUid)
+            if (applied) {
+                postDao.adjustPostUpvotes(postId, 1)
+                val authorUid = postDao.getPostById(postId)?.authorUid
+                if (!authorUid.isNullOrBlank()) {
+                    userDao.adjustBytes(authorUid, 1)
+                }
+            }
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
@@ -134,6 +152,7 @@ class PostRepositoryImpl @Inject constructor(
     override suspend fun deletePost(postId: String): Result<Unit> {
         return try {
             val authorUid = postDao.getPostById(postId)?.authorUid
+            postDao.insertDeletedPost(DeletedPostEntity(postId = postId))
             postDao.deletePostById(postId)
             if (!authorUid.isNullOrBlank()) {
                 userDao.adjustPostCount(authorUid, -1)

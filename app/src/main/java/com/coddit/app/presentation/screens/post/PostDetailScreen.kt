@@ -1,6 +1,7 @@
 package com.coddit.app.presentation.screens.post
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -51,7 +52,8 @@ import com.coddit.app.presentation.theme.*
 fun PostDetailScreen(
     postId: String,
     viewModel: PostDetailViewModel = hiltViewModel(),
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onUserProfileClick: (String) -> Unit
 ) {
     val postState by viewModel.postState.collectAsState()
     val repliesState by viewModel.repliesState.collectAsState()
@@ -286,11 +288,20 @@ fun PostDetailScreen(
                     item {
                         Column(modifier = Modifier.padding(24.dp)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                UserAvatar(url = post.data.authorAvatarUrl, size = 44)
+                                UserAvatar(
+                                    url = post.data.authorAvatarUrl,
+                                    size = 44,
+                                    onClick = { onUserProfileClick(post.data.authorUid) }
+                                )
                                 Spacer(modifier = Modifier.width(12.dp))
                                 Column {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Text(text = post.data.authorUsername, fontWeight = FontWeight.Bold, color = Color.White)
+                                        Text(
+                                            text = post.data.authorUsername,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color.White,
+                                            modifier = Modifier.clickable { onUserProfileClick(post.data.authorUid) }
+                                        )
                                         Spacer(modifier = Modifier.width(8.dp))
                                         post.data.authorLinkedAccounts.forEach { account ->
                                             LinkedAccountBadge(provider = account.provider.name)
@@ -328,17 +339,6 @@ fun PostDetailScreen(
                                 Spacer(modifier = Modifier.width(8.dp))
                                 val replyCount = (repliesState as? UiState.Success)?.data?.size ?: post.data.replyCount
                                 Text("${replyCount} replies", color = Color.White.copy(alpha = 0.4f), fontWeight = FontWeight.Medium)
-                                
-                                Spacer(modifier = Modifier.weight(1f))
-                                if (post.data.solved) {
-                                    Surface(
-                                        color = SolvedGreen.copy(alpha = 0.15f),
-                                        shape = RoundedCornerShape(20.dp),
-                                        border = BorderStroke(1.dp, SolvedGreen.copy(alpha = 0.2f))
-                                    ) {
-                                        Text("✓ solved", modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp), color = SolvedGreen, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                                    }
-                                }
                             }
                         }
                     }
@@ -358,8 +358,6 @@ fun PostDetailScreen(
                                 ReplyCard(
                                     reply = reply,
                                     onUpvote = { viewModel.onVoteReply(postId, reply.replyId, currentUid) },
-                                    onAccept = { viewModel.onAcceptReply(postId, reply.replyId) },
-                                    canAccept = !post.data.solved || reply.accepted,
                                     canEdit = canEditReply,
                                     canDelete = canDeleteReply,
                                     onEdit = {
@@ -368,7 +366,8 @@ fun PostDetailScreen(
                                     },
                                     onDelete = {
                                         viewModel.onDeleteReply(postId, reply.replyId)
-                                    }
+                                    },
+                                    onAuthorClick = { onUserProfileClick(reply.authorUid) }
                                 )
                             }
                         }

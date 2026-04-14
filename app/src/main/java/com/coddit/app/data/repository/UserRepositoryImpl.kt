@@ -41,6 +41,14 @@ class UserRepositoryImpl @Inject constructor(
             }
     }
 
+    override suspend fun getFollowers(uid: String): Result<List<User>> {
+        return try {
+            Result.success(userRemoteSource.getFollowers(uid))
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     override suspend fun checkUsernameAvailability(username: String): Result<Boolean> {
         return try {
             val available = userRemoteSource.isUsernameAvailable(username)

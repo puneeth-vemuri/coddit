@@ -38,6 +38,8 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -58,6 +60,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.coddit.app.domain.model.LinkedAccount
+import com.coddit.app.domain.model.User
 import com.coddit.app.presentation.components.LinkedAccountBadge
 import com.coddit.app.presentation.components.PostCard
 import com.coddit.app.presentation.components.TagChip
@@ -76,13 +79,17 @@ fun ProfileScreen(
     viewModel: ProfileViewModel = hiltViewModel(),
     onBack: () -> Unit,
     onLinkAccount: () -> Unit,
-    onPostClick: (String) -> Unit
+    onPostClick: (String) -> Unit,
+    onUserProfileClick: (String) -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val postsState by viewModel.postsState.collectAsState()
+    val followersState by viewModel.followersState.collectAsState()
     val isOwnProfile = FirebaseAuth.getInstance().currentUser?.uid == uid
     var menuExpanded by remember { mutableStateOf(false) }
     var editingSkills by remember { mutableStateOf(false) }
+    var showFollowersSheet by remember { mutableStateOf(false) }
+    val followersSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     LaunchedEffect(uid) {
         viewModel.loadProfile(uid)
@@ -212,7 +219,14 @@ fun ProfileScreen(
                             VerticalDivider(color = Color.White.copy(alpha = 0.12f), modifier = Modifier.height(38.dp))
                             ProfileStatItem(label = "bytes", value = "${user.bytes}", valueColor = BytesPurple)
                             VerticalDivider(color = Color.White.copy(alpha = 0.12f), modifier = Modifier.height(38.dp))
-                            ProfileStatItem(label = "followers", value = "${user.followerCount}")
+                            ProfileStatItem(
+                                label = "followers",
+                                value = "${user.followerCount}",
+                                onClick = {
+                                    showFollowersSheet = true
+                                    viewModel.loadFollowers(uid)
+                                }
+                            )
                         }
 
                         // Follow button (only show if not own profile)
@@ -265,27 +279,6 @@ fun ProfileScreen(
                                     onUnlink = { viewModel.unlinkAccount(account.provider) }
                                 )
                             }
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Surface(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable { onLinkAccount() },
-                                shape = RoundedCornerShape(14.dp),
-                                color = CodditCard.copy(alpha = if (user.linkedAccounts.isEmpty()) 1.0f else 0.4f),
-                                border = BorderStroke(1.dp, Color.White.copy(alpha = if (user.linkedAccounts.isEmpty()) 0.1f else 0.06f))
-                            ) {
-                                Column(modifier = Modifier.padding(14.dp)) {
-                                    Text(
-                                        text = if (user.linkedAccounts.isEmpty()) "Link GitHub or StackOverflow" else "+ Add account",
-                                        color = Color.White.copy(alpha = if (user.linkedAccounts.isEmpty()) 0.45f else 0.55f),
-                                        fontWeight = if (user.linkedAccounts.isEmpty()) FontWeight.Normal else FontWeight.SemiBold,
-                                        fontSize = 14.sp
-                                    )
-                                    if (user.linkedAccounts.isNotEmpty()) {
-                                        Text(text = "npm | DEV.to | more", color = Color.White.copy(alpha = 0.34f), fontSize = 12.sp)
-                                    }
-                                }
-                            }
                         }
                     }
 
@@ -327,7 +320,8 @@ fun ProfileScreen(
                                     post = post,
                                     onClick = { onPostClick(post.postId) },
                                     onUpvote = {},
-                                    onShare = {}
+                                    onShare = {},
+                                    onAuthorClick = { onUserProfileClick(post.authorUid) }
                                 )
                             }
                         }
@@ -400,14 +394,103 @@ fun ProfileScreen(
 
             else -> Unit
         }
+
+        if (showFollowersSheet) {
+            ModalBottomSheet(
+                onDismissRequest = { showFollowersSheet = false },
+                sheetState = followersSheetState,
+                containerColor = CodditCard
+            ) {
+                Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+                    Text(
+                        text = "Followers",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    when (val followers = followersState) {
+                        is UiState.Loading -> {
+                            Box(modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp), contentAlignment = Alignment.Center) {
+                                CircularProgressIndicator(color = CodditTeal)
+                            }
+                        }
+                        is UiState.Success -> {
+                            LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                items(followers.data, key = { it.uid }) { follower ->
+                                    FollowerRow(
+                                        follower = follower,
+                                        onClick = {
+                                            showFollowersSheet = false
+                                            onUserProfileClick(follower.uid)
+                                        }
+                                    )
+                                }
+                                item { Spacer(modifier = Modifier.height(8.dp)) }
+                            }
+                        }
+                        is UiState.Empty -> {
+                            Text(
+                                text = "No followers yet",
+                                color = Color.White.copy(alpha = 0.5f),
+                                modifier = Modifier.padding(vertical = 20.dp)
+                            )
+                        }
+                        is UiState.Error -> {
+                            Text(
+                                text = (followers as UiState.Error).message,
+                                color = MaterialTheme.colorScheme.error,
+                                modifier = Modifier.padding(vertical = 20.dp)
+                            )
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
 @Composable
-private fun ProfileStatItem(label: String, value: String, valueColor: Color = Color.White) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+private fun ProfileStatItem(label: String, value: String, valueColor: Color = Color.White, onClick: () -> Unit = {}) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.clickable(onClick = onClick)) {
         Text(text = value, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = valueColor)
         Text(text = label, fontSize = 9.sp, fontWeight = FontWeight.Medium, color = Color.White.copy(alpha = 0.48f))
+    }
+}
+
+@Composable
+private fun FollowerRow(
+    follower: User,
+    onClick: () -> Unit
+) {
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(14.dp),
+        color = CodditCard,
+        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            UserAvatar(url = follower.avatarUrl, size = 36)
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = follower.displayName,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 14.sp,
+                    color = Color.White
+                )
+                Text(
+                    text = "@${follower.username}",
+                    fontSize = 12.sp,
+                    color = Color.White.copy(alpha = 0.55f)
+                )
+            }
+        }
     }
 }
 

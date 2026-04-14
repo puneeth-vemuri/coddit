@@ -103,10 +103,22 @@ class PostRemoteSource @Inject constructor(
         }.await()
     }
 
-    suspend fun votePost(postId: String, delta: Int) {
-        postsCollection.document(postId)
-            .update("upvotes", FieldValue.increment(delta.toLong()))
-            .await()
+    suspend fun votePost(postId: String, voterUid: String): Boolean {
+        return firestore.runTransaction { transaction ->
+            val postRef = postsCollection.document(postId)
+            val voteRef = postRef.collection("votes").document(voterUid)
+            val postSnapshot = transaction.get(postRef)
+            if (!postSnapshot.exists()) return@runTransaction false
+            if (transaction.get(voteRef).exists()) return@runTransaction false
+
+            val authorUid = postSnapshot.getString("authorUid").orEmpty()
+            transaction.set(voteRef, mapOf("votedAt" to FieldValue.serverTimestamp()))
+            transaction.update(postRef, "upvotes", FieldValue.increment(1))
+            if (authorUid.isNotBlank()) {
+                transaction.update(usersCollection.document(authorUid), "bytes", FieldValue.increment(1))
+            }
+            true
+        }.await()
     }
 
     suspend fun incrementViewCount(postId: String) {
@@ -137,8 +149,11 @@ class PostRemoteSource @Inject constructor(
             transaction.delete(postRef)
             if (authorUid.isNotBlank()) {
                 val userRef = usersCollection.document(authorUid)
-                val existingCount = (transaction.get(userRef).getLong("postCount") ?: 0L).coerceAtLeast(0L)
-                transaction.update(userRef, "postCount", (existingCount - 1L).coerceAtLeast(0L))
+                val userSnapshot = transaction.get(userRef)
+                if (userSnapshot.exists()) {
+                    val existingCount = (userSnapshot.getLong("postCount") ?: 0L).coerceAtLeast(0L)
+                    transaction.update(userRef, "postCount", (existingCount - 1L).coerceAtLeast(0L))
+                }
             }
         }.await()
     }

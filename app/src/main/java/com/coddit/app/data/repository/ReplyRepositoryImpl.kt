@@ -2,6 +2,7 @@ package com.coddit.app.data.repository
 
 import com.coddit.app.data.local.db.dao.ReplyDao
 import com.coddit.app.data.local.db.dao.PostDao
+import com.coddit.app.data.local.db.dao.UserDao
 import com.coddit.app.data.remote.firestore.ReplyRemoteSource
 import com.coddit.app.data.remote.storage.ImageStorageSource
 import com.coddit.app.data.repository.Mappers.toDomain
@@ -21,6 +22,7 @@ import javax.inject.Singleton
 class ReplyRepositoryImpl @Inject constructor(
     private val postDao: PostDao,
     private val replyDao: ReplyDao,
+    private val userDao: UserDao,
     private val replyRemoteSource: ReplyRemoteSource,
     private val imageStorageSource: ImageStorageSource
 ) : ReplyRepository {
@@ -96,7 +98,14 @@ class ReplyRepositoryImpl @Inject constructor(
 
     override suspend fun voteReply(postId: String, replyId: String, voterUid: String): Result<Unit> {
         return try {
-            replyRemoteSource.voteReply(postId, replyId, 1) // Increment by 1
+            val applied = replyRemoteSource.voteReply(postId, replyId, voterUid)
+            if (applied) {
+                replyDao.adjustReplyUpvotes(postId, replyId, 1)
+                val authorUid = replyDao.getReplyById(postId, replyId)?.authorUid
+                if (!authorUid.isNullOrBlank()) {
+                    userDao.adjustBytes(authorUid, 1)
+                }
+            }
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)

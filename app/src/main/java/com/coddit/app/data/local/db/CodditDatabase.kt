@@ -4,13 +4,14 @@ import androidx.room.*
 import com.coddit.app.data.local.db.dao.PostDao
 import com.coddit.app.data.local.db.dao.ReplyDao
 import com.coddit.app.data.local.db.dao.UserDao
+import com.coddit.app.data.local.db.entity.DeletedPostEntity
 import com.coddit.app.data.local.db.entity.PostEntity
 import com.coddit.app.data.local.db.entity.ReplyEntity
 import com.coddit.app.data.local.db.entity.UserEntity
 
 @Database(
-    entities = [PostEntity::class, ReplyEntity::class, UserEntity::class],
-    version = 5,
+    entities = [PostEntity::class, ReplyEntity::class, UserEntity::class, DeletedPostEntity::class],
+    version = 7,
     exportSchema = false
 )
 @TypeConverters(CodditTypeConverters::class)

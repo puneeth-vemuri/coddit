@@ -76,7 +76,15 @@ fun NavGraph(
                 onPostClick = { postId -> navController.navigate(Screen.PostDetail(postId).route) },
                 onNotificationsClick = { navController.navigate(Screen.Notifications.route) },
                 onSearchClick = { navController.navigate(Screen.Search.route) },
-                onProfileClick = { navController.navigate(Screen.MyProfile.route) }
+                onProfileClick = { navController.navigate(Screen.MyProfile.route) },
+                onUserProfileClick = { uid ->
+                    val myUid = FirebaseAuth.getInstance().currentUser?.uid
+                    if (uid == myUid) {
+                        navController.navigate(Screen.MyProfile.route)
+                    } else {
+                        navController.navigate(Screen.Profile(uid).route)
+                    }
+                }
             )
         }
         
@@ -84,7 +92,15 @@ fun NavGraph(
             val postId = backStackEntry.arguments?.getString("postId") ?: return@composable
             PostDetailScreen(
                 postId = postId,
-                onBack = { navController.popBackStack() }
+                onBack = { navController.popBackStack() },
+                onUserProfileClick = { uid ->
+                    val myUid = FirebaseAuth.getInstance().currentUser?.uid
+                    if (uid == myUid) {
+                        navController.navigate(Screen.MyProfile.route)
+                    } else {
+                        navController.navigate(Screen.Profile(uid).route)
+                    }
+                }
             )
         }
         
@@ -94,7 +110,15 @@ fun NavGraph(
                 uid = uid,
                 onBack = { navController.popBackStack() },
                 onLinkAccount = { navController.navigate(Screen.LinkAccount.route) },
-                onPostClick = { postId -> navController.navigate(Screen.PostDetail(postId).route) }
+                onPostClick = { postId -> navController.navigate(Screen.PostDetail(postId).route) },
+                onUserProfileClick = { clickedUid ->
+                    val myUid = FirebaseAuth.getInstance().currentUser?.uid
+                    if (clickedUid == myUid) {
+                        navController.navigate(Screen.MyProfile.route)
+                    } else {
+                        navController.navigate(Screen.Profile(clickedUid).route)
+                    }
+                }
             )
         }
 
@@ -104,14 +128,29 @@ fun NavGraph(
                 uid = myUid,
                 onBack = { navController.popBackStack() },
                 onLinkAccount = { navController.navigate(Screen.LinkAccount.route) },
-                onPostClick = { postId -> navController.navigate(Screen.PostDetail(postId).route) }
+                onPostClick = { postId -> navController.navigate(Screen.PostDetail(postId).route) },
+                onUserProfileClick = { clickedUid ->
+                    if (clickedUid == myUid) {
+                        navController.navigate(Screen.MyProfile.route)
+                    } else {
+                        navController.navigate(Screen.Profile(clickedUid).route)
+                    }
+                }
             )
         }
         
         composable(Screen.Search.route) {
             SearchScreen(
                 onBack = { navController.popBackStack() },
-                onPostClick = { postId -> navController.navigate(Screen.PostDetail(postId).route) }
+                onPostClick = { postId -> navController.navigate(Screen.PostDetail(postId).route) },
+                onUserProfileClick = { uid ->
+                    val myUid = FirebaseAuth.getInstance().currentUser?.uid
+                    if (uid == myUid) {
+                        navController.navigate(Screen.MyProfile.route)
+                    } else {
+                        navController.navigate(Screen.Profile(uid).route)
+                    }
+                }
             )
         }
         

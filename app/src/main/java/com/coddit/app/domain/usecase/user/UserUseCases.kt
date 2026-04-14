@@ -14,6 +14,14 @@ class GetUserProfileUseCase @Inject constructor(
     }
 }
 
+class GetFollowersUseCase @Inject constructor(
+    private val userRepository: UserRepository
+) {
+    suspend operator fun invoke(uid: String): Result<List<User>> {
+        return userRepository.getFollowers(uid)
+    }
+}
+
 class LinkAccountUseCase @Inject constructor(
     private val userRepository: UserRepository
 ) {

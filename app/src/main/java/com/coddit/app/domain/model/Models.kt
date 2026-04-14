@@ -46,7 +46,6 @@ data class User(
     val avatarUrl: String?,
     val bytes: Int,
     val postCount: Int,
-    val solvedCount: Int,
     val followerCount: Int,
     val linkedAccounts: List<LinkedAccount>,
     val skills: List<String> = emptyList(),

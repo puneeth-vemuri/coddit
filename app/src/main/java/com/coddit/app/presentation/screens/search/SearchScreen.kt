@@ -33,7 +33,8 @@ import com.coddit.app.presentation.theme.CodditTeal
 fun SearchScreen(
     viewModel: SearchViewModel = hiltViewModel(),
     onBack: () -> Unit,
-    onPostClick: (String) -> Unit
+    onPostClick: (String) -> Unit,
+    onUserProfileClick: (String) -> Unit
 ) {
     var searchQuery by remember { mutableStateOf("") }
     val posts by viewModel.posts.collectAsState()
@@ -156,7 +157,8 @@ fun SearchScreen(
                         post = post,
                         onClick = { onPostClick(post.postId) },
                         onUpvote = {},
-                        onShare = {}
+                        onShare = {},
+                        onAuthorClick = { onUserProfileClick(post.authorUid) }
                     )
                 }
             }

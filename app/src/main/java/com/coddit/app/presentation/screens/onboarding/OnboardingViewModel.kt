@@ -2,6 +2,8 @@ package com.coddit.app.presentation.screens.onboarding
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.coddit.app.domain.model.LinkedAccount
+import com.coddit.app.domain.model.LinkedAccountProvider
 import com.coddit.app.data.local.datastore.SessionDataStore
 import com.coddit.app.domain.model.User
 import com.coddit.app.domain.repository.UserRepository
@@ -80,7 +82,6 @@ class OnboardingViewModel @Inject constructor(
             avatarUrl = currentUser.photoUrl?.toString(),
             bytes = 0,
             postCount = 0,
-            solvedCount = 0,
             followerCount = 0,
             linkedAccounts = emptyList(),
             createdAt = System.currentTimeMillis()
@@ -88,6 +89,7 @@ class OnboardingViewModel @Inject constructor(
 
         val saveResult = userRepository.saveUser(user)
         if (saveResult.isSuccess) {
+            syncInitialLinkedAccounts(currentUser.uid)
             sessionDataStore.saveSession(currentUser.uid, pickedUsername)
             _usernameStatus.value = UiState.Success(true)
         } else {
@@ -112,15 +114,42 @@ class OnboardingViewModel @Inject constructor(
                 avatarUrl = avatarUrl,
                 bytes = 0,
                 postCount = 0,
-                solvedCount = 0,
                 followerCount = 0,
                 linkedAccounts = emptyList(),
                 createdAt = System.currentTimeMillis()
             )
             val result = userRepository.saveUser(user)
             if (result.isSuccess) {
+                syncInitialLinkedAccounts(uid)
                 sessionDataStore.setOnboardingCompleted(true)
             }
+        }
+    }
+
+    private suspend fun syncInitialLinkedAccounts(uid: String) {
+        val firebaseUser = auth.currentUser ?: return
+        val accounts = firebaseUser.providerData.mapNotNull { providerInfo ->
+            when (providerInfo.providerId) {
+                "google.com" -> LinkedAccount(
+                    provider = LinkedAccountProvider.GOOGLE,
+                    handle = providerInfo.email ?: firebaseUser.email ?: uid.take(8),
+                    profileUrl = "",
+                    displayData = providerInfo.email ?: firebaseUser.email ?: "Google account linked",
+                    verified = true
+                )
+                "github.com" -> LinkedAccount(
+                    provider = LinkedAccountProvider.GITHUB,
+                    handle = providerInfo.displayName ?: firebaseUser.displayName ?: uid.take(8),
+                    profileUrl = "",
+                    displayData = "Connected via GitHub OAuth",
+                    verified = true
+                )
+                else -> null
+            }
+        }
+
+        accounts.forEach { account ->
+            userRepository.linkAccount(uid, account)
         }
     }
 

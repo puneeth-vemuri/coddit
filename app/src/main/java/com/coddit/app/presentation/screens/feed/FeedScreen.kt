@@ -42,7 +42,8 @@ fun FeedScreen(
     onPostClick: (String) -> Unit,
     onNotificationsClick: () -> Unit,
     onSearchClick: () -> Unit,
-    onProfileClick: () -> Unit
+    onProfileClick: () -> Unit,
+    onUserProfileClick: (String) -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val selectedTags by viewModel.selectedTags.collectAsState()
@@ -121,16 +122,6 @@ fun FeedScreen(
                 }
             }
         },
-        floatingActionButton = {
-            FloatingActionButton(
-                onClick = onCreatePost,
-                containerColor = CodditTeal,
-                contentColor = Color.White,
-                shape = CircleShape
-            ) {
-                Icon(Icons.Default.Add, contentDescription = "Create Post")
-            }
-        },
         bottomBar = {
             NavigationBar(
                 containerColor = CodditSurface,
@@ -151,9 +142,9 @@ fun FeedScreen(
                 )
                 NavigationBarItem(
                     selected = false,
-                    onClick = onSearchClick,
-                    icon = { Icon(Icons.Default.Search, contentDescription = "Search") },
-                    label = { Text("search", fontSize = 10.sp, fontFamily = FontFamily.Monospace) },
+                    onClick = onCreatePost,
+                    icon = { Icon(Icons.Default.Add, contentDescription = "Create Post") },
+                    label = { Text("post", fontSize = 10.sp, fontFamily = FontFamily.Monospace) },
                     colors = NavigationBarItemDefaults.colors(
                         selectedIconColor = CodditTeal,
                         selectedTextColor = CodditTeal,
@@ -226,7 +217,8 @@ fun FeedScreen(
                                     post = post,
                                     onClick = { onPostClick(post.postId) },
                                     onUpvote = { viewModel.onVotePost(post.postId, currentUid) },
-                                    onShare = { /* Share handled in VM */ }
+                                    onShare = { /* Share handled in VM */ },
+                                    onAuthorClick = { onUserProfileClick(post.authorUid) }
                                 )
                             }
                         }

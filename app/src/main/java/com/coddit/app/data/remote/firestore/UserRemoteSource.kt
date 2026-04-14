@@ -42,7 +42,6 @@ class UserRemoteSource @Inject constructor(
                 avatarUrl = data["avatarUrl"] as String?,
                 bytes = (data["bytes"] as? Long)?.toInt() ?: 0,
                 postCount = (data["postCount"] as? Long)?.toInt() ?: 0,
-                solvedCount = (data["solvedCount"] as? Long)?.toInt() ?: 0,
                 followerCount = (data["followerCount"] as? Long)?.toInt() ?: 0,
                 linkedAccounts = linkedAccounts,
                 skills = (data["skills"] as? List<String>) ?: emptyList(),
@@ -59,7 +58,6 @@ class UserRemoteSource @Inject constructor(
             "avatarUrl" to user.avatarUrl,
             "bytes" to user.bytes,
             "postCount" to user.postCount,
-            "solvedCount" to user.solvedCount,
             "followerCount" to user.followerCount,
             "skills" to user.skills,
             "createdAt" to FieldValue.serverTimestamp()
@@ -157,5 +155,33 @@ class UserRemoteSource @Inject constructor(
             .get()
             .await()
         return doc.exists()
+    }
+
+    suspend fun getFollowers(uid: String): List<User> {
+        val followersSnapshot = usersCollection.document(uid)
+            .collection("followers")
+            .orderBy("followedAt", com.google.firebase.firestore.Query.Direction.DESCENDING)
+            .get()
+            .await()
+
+        return followersSnapshot.documents.mapNotNull { followerDoc ->
+            val followerUid = followerDoc.id
+            val userDoc = usersCollection.document(followerUid).get().await()
+            if (!userDoc.exists()) return@mapNotNull null
+
+            val data = userDoc.data ?: return@mapNotNull null
+            User(
+                uid = followerUid,
+                username = data["username"] as String,
+                displayName = data["displayName"] as String,
+                avatarUrl = data["avatarUrl"] as String?,
+                bytes = (data["bytes"] as? Long)?.toInt() ?: 0,
+                postCount = (data["postCount"] as? Long)?.toInt() ?: 0,
+                followerCount = (data["followerCount"] as? Long)?.toInt() ?: 0,
+                linkedAccounts = emptyList(),
+                skills = (data["skills"] as? List<String>) ?: emptyList(),
+                createdAt = (data["createdAt"] as? com.google.firebase.Timestamp)?.toDate()?.time ?: 0L
+            )
+        }
     }
 }

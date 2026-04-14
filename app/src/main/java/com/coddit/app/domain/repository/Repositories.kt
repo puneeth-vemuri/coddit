@@ -28,6 +28,7 @@ interface ReplyRepository {
 
 interface UserRepository {
     fun getUserProfile(uid: String): Flow<User?>
+    suspend fun getFollowers(uid: String): Result<List<User>>
     suspend fun checkUsernameAvailability(username: String): Result<Boolean>
     suspend fun saveUser(user: User): Result<Unit>
     suspend fun linkAccount(uid: String, account: com.coddit.app.domain.model.LinkedAccount): Result<Unit>

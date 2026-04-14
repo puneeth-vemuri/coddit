@@ -24,6 +24,12 @@ data class PostEntity(
     val cachedAt: Long = System.currentTimeMillis()
 )
 
+@Entity(tableName = "deleted_posts")
+data class DeletedPostEntity(
+    @PrimaryKey val postId: String,
+    val deletedAt: Long = System.currentTimeMillis()
+)
+
 @Entity(
     tableName = "replies",
     foreignKeys = [
@@ -59,7 +65,6 @@ data class UserEntity(
     val avatarUrl: String?,
     val bytes: Int,
     val postCount: Int,
-    val solvedCount: Int,
     val followerCount: Int = 0,
     val linkedAccountsJson: String, // JSON array string
     val skillsJson: String = "[]",
